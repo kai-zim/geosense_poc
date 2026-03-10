@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+
+{% block title %}GeoSense - Ergebnisse{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Analyse-Ergebnisse</h2>
+    <p class="subtitle">{{ vertical_name }} | Run ID: {{ output.run_id }} | {{ output.timestamp[:19] }}</p>
+</div>
+
+{% if error %}
+<div class="alert alert-error">
+    <strong>Fehler:</strong> {{ error }}
+</div>
+{% else %}
+
+<!-- Zusammenfassung -->
+<section class="results-summary">
+    <div class="summary-cards">
+        <div class="summary-card">
+            <span class="card-label">Analysierte Kandidaten</span>
+            <span class="card-value">{{ output.total_kandidaten }}</span>
+        </div>
+        <div class="summary-card">
+            <span class="card-label">Nach Filterung</span>
+            <span class="card-value">{{ output.gefiltert_count }}</span>
+        </div>
+        <div class="summary-card">
+            <span class="card-label">Top-Ergebnisse</span>
+            <span class="card-value">{{ output.standorte|length }}</span>
+        </div>
+        <div class="summary-card highlight">
+            <span class="card-label">Bester Standort</span>
+            {% if output.standorte %}
+            <span class="card-value">{{ "%.0f"|format(output.standorte[0].erwarteter_umsatz) }} €</span>
+            <span class="card-sublabel">erw. Umsatz/Monat</span>
+            {% else %}
+            <span class="card-value">-</span>
+            <span class="card-sublabel">Keine Treffer nach Filterregeln</span>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<!-- Sensitivitätsanalyse (wenn aktiviert) -->
+{% if output.sensitivitaet %}
+<section class="sensitivity-section">
+    <h3><span class="section-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg></span> Sensitivitätsanalyse</h3>
+    <div class="sensitivity-card">
+        <div class="stability-meter">
+            <span class="label">Ranking-Stabilität:</span>
+            <div class="meter-bar">
+                <div class="meter-fill" style="width: {{ output.sensitivitaet.ranking_stabilitaet * 100 }}%"></div>
+            </div>
+            <span class="value">{{ "%.0f"|format(output.sensitivitaet.ranking_stabilitaet * 100) }}%</span>
+        </div>
+        {% if output.sensitivitaet.kritische_parameter %}
+        <div class="critical-params">
+            <strong>Kritische Parameter:</strong> {{ output.sensitivitaet.kritische_parameter|join(", ") }}
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+
+<!-- Baseline-Vergleich (wenn aktiviert) -->
+{% if output.baseline_vergleich %}
+<section class="baseline-section">
+    <h3><span class="section-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span> Vergleich zu Baselines</h3>
+    <p class="section-desc">GeoSense vs. alternative Auswahlmethoden</p>
+    {% set ns = namespace(geosense_ref=None) %}
+    {% for bl in output.baseline_vergleich %}
+        {% if bl.methode == 'GeoSense' %}
+            {% set ns.geosense_ref = bl %}
+        {% endif %}
+    {% endfor %}
+    <table class="baseline-table">
+        <thead>
+            <tr>
+                <th>Methode</th>
+                <th>Ø Umsatz (€/Monat)</th>
+                <th>Vergleich</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for bl in output.baseline_vergleich %}
+            <tr class="{{ 'highlight-row' if bl.methode == 'GeoSense' else '' }}">
+                <td>
+                    {% if bl.methode == 'GeoSense' %}
+                    <strong><span class="trophy-icon"></span> {{ bl.methode }}</strong>
+                    {% else %}
+                    {{ bl.methode }}
+                    {% endif %}
+                </td>
+                <td>{{ "%.0f"|format(bl.avg_umsatz) }} €</td>
+                <td>
+                    {% if bl.methode == 'GeoSense' %}
+                    <span class="badge badge-success">Referenz</span>
+                    {% elif ns.geosense_ref and ns.geosense_ref.avg_umsatz > 0 %}
+                        {% if bl.avg_umsatz < ns.geosense_ref.avg_umsatz %}
+                        <span class="badge badge-default">-{{ "%.1f"|format((1 - bl.avg_umsatz/ns.geosense_ref.avg_umsatz)*100) }}%</span>
+                        {% else %}
+                        <span class="badge badge-warning">+{{ "%.1f"|format((bl.avg_umsatz/ns.geosense_ref.avg_umsatz - 1)*100) }}%</span>
+                        {% endif %}
+                    {% else %}
+                    <span class="badge badge-default">n/a</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+{% if not output.standorte %}
+<section class="empty-state" role="status" aria-live="polite">
+    <div class="empty-state-icon" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    </div>
+    <h3>Keine Standorte gefunden</h3>
+    <p>Aktuelle Filter und Mindestziele sind sehr streng. Reduzieren Sie z. B. Mindest-ROI, Mindestabstand oder Erreichbarkeitsgrenzen und starten Sie die Analyse erneut.</p>
+    <a href="/" class="btn btn-primary">Filter anpassen</a>
+</section>
+{% else %}
+
+<!-- Ergebnis-Tabelle -->
+<section class="results-table-section">
+    <div class="section-header">
+        <h3><span class="section-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span> Top-Standorte</h3>
+        <div class="export-buttons">
+            <a href="/export/csv?run_id={{ output.run_id }}" class="btn btn-small"><span class="download-icon"></span> CSV Export</a>
+            <a href="/export/json?run_id={{ output.run_id }}" class="btn btn-small"><span class="download-icon"></span> JSON Export</a>
+        </div>
+    </div>
+
+    <table class="results-table">
+        <thead>
+            <tr>
+                <th class="th-center">Rang</th>
+                <th>Adresse / Ort</th>
+                <th class="th-right">Erw. Umsatz</th>
+                <th class="th-right">ROI</th>
+                <th class="th-center">Risiko</th>
+                <th class="th-center">Confidence</th>
+                <th class="th-center"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for standort in output.standorte %}
+            <tr class="result-row" data-standort-id="{{ standort.rang }}">
+                <td class="rang-cell percent-cell" data-label="Rang">
+                    {% if standort.rang == 1 %}
+                    <span class="rank-badge gold">1</span>
+                    {% elif standort.rang == 2 %}
+                    <span class="rank-badge silver">2</span>
+                    {% elif standort.rang == 3 %}
+                    <span class="rank-badge bronze">3</span>
+                    {% else %}
+                    <span class="rank-badge">{{ standort.rang }}</span>
+                    {% endif %}
+                </td>
+                <td class="adresse-cell" data-label="Adresse">{{ standort.adresse }}</td>
+                <td class="umsatz-cell numeric-cell" data-label="Erw. Umsatz">{{ "{:,.0f}".format(standort.erwarteter_umsatz).replace(',', '.') }} €</td>
+                <td class="roi-cell numeric-cell {{ 'roi-positive' if standort.roi_prozent > 0 else 'roi-negative' }}" data-label="ROI">
+                    {% if standort.roi_prozent > 0 %}+{% endif %}{{ "%.1f"|format(standort.roi_prozent) }}%
+                </td>
+                <td class="score-cell percent-cell" data-label="Risiko">
+                    <span class="score-badge {{ 'score-high' if standort.risiko < 30 else 'score-medium' if standort.risiko < 60 else 'score-low' }}">
+                        {{ "%.0f"|format(standort.risiko) }}%
+                    </span>
+                </td>
+                <td class="score-cell percent-cell" data-label="Confidence">
+                    <span class="score-badge {{ 'score-high' if standort.confidence >= 70 else 'score-medium' if standort.confidence >= 40 else 'score-low' }}">
+                        {{ "%.0f"|format(standort.confidence) }}%
+                    </span>
+                </td>
+                <td class="expand-cell">
+                    <button class="expand-btn" type="button" aria-expanded="false" aria-controls="details-{{ standort.rang }}" onclick="toggleDetails({{ standort.rang }})">
+                        <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                        Details
+                    </button>
+                </td>
+            </tr>
+            <tr class="details-row" id="details-{{ standort.rang }}" style="display: none;">
+                <td colspan="7">
+                    <div class="details-content">
+                        <div class="details-grid">
+                            <!-- Top-3 Gründe Card -->
+                            <div class="detail-card detail-card-highlight">
+                                <div class="detail-card-header">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                    <h5>Top-3 Gründe</h5>
+                                </div>
+                                <ul class="gruende-list-detail">
+                                    {% for grund in standort.top_3_gruende %}
+                                    <li>
+                                        <span class="reason-rank">{{ loop.index }}</span>
+                                        <span class="reason-text">{{ grund }}</span>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+
+                            <!-- Quick Stats Card -->
+                            <div class="detail-card">
+                                <div class="detail-card-header">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                                    <h5>Zusätzliche KPIs</h5>
+                                </div>
+                                <div class="quick-stats">
+                                    <div class="stat-item">
+                                        <div class="stat-meta">
+                                            <span class="stat-icon" aria-hidden="true"><svg class="stat-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/><path d="M12 2v3"/></svg></span>
+                                            <span class="stat-label">Payback</span>
+                                        </div>
+                                        <span class="stat-value {{ 'stat-good' if standort.payback_monate <= 24 else 'stat-medium' if standort.payback_monate <= 48 else 'stat-bad' }}">
+                                            {{ "%.0f"|format(standort.payback_monate) }} Mon.
+                                        </span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-meta">
+                                            <span class="stat-icon" aria-hidden="true"><svg class="stat-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2 11 12"/><path d="m7 16 2-2"/><path d="m3 20 2-2"/><path d="m13 10 8 8"/><path d="M11 12 3 4"/></svg></span>
+                                            <span class="stat-label">Datenabdeckung</span>
+                                        </div>
+                                        <span class="stat-value {{ 'stat-good' if standort.datenabdeckung_prozent >= 80 else 'stat-medium' if standort.datenabdeckung_prozent >= 60 else 'stat-bad' }}">
+                                            {{ "%.0f"|format(standort.datenabdeckung_prozent) }}%
+                                        </span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-meta">
+                                            <span class="stat-icon" aria-hidden="true"><svg class="stat-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16v-4"/><path d="M12 16V8"/><path d="M17 16v-7"/></svg></span>
+                                            <span class="stat-label">Gesamtscore</span>
+                                        </div>
+                                        <span class="stat-value stat-primary {{ 'stat-good' if standort.gesamtscore >= 70 else 'stat-medium' if standort.gesamtscore >= 50 else 'stat-bad' }}">
+                                            {{ "%.1f"|format(standort.gesamtscore) }}/100
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Score Breakdown Card -->
+                            <div class="detail-card">
+                                <div class="detail-card-header">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                                    <h5>Score Breakdown</h5>
+                                </div>
+                                <div class="score-bars">
+                                    <div class="score-bar-item">
+                                        <span class="label">Nachfrage</span>
+                                        <div class="bar">
+                                            <div class="fill" style="width: {{ standort.score_breakdown.nachfrage_score * 100 }}%"></div>
+                                        </div>
+                                        <span class="value">{{ "%.0f"|format(standort.score_breakdown.nachfrage_score * 100) }}%</span>
+                                    </div>
+                                    <div class="score-bar-item">
+                                        <span class="label">Kaufkraft</span>
+                                        <div class="bar">
+                                            <div class="fill" style="width: {{ standort.score_breakdown.kaufkraft_score * 100 }}%"></div>
+                                        </div>
+                                        <span class="value">{{ "%.0f"|format(standort.score_breakdown.kaufkraft_score * 100) }}%</span>
+                                    </div>
+                                    <div class="score-bar-item">
+                                        <span class="label">Wettbewerb</span>
+                                        <div class="bar">
+                                            <div class="fill" style="width: {{ standort.score_breakdown.wettbewerb_score * 100 }}%"></div>
+                                        </div>
+                                        <span class="value">{{ "%.0f"|format(standort.score_breakdown.wettbewerb_score * 100) }}%</span>
+                                    </div>
+                                    <div class="score-bar-item">
+                                        <span class="label">Infrastruktur</span>
+                                        <div class="bar">
+                                            <div class="fill" style="width: {{ standort.score_breakdown.infrastruktur_score * 100 }}%"></div>
+                                        </div>
+                                        <span class="value">{{ "%.0f"|format(standort.score_breakdown.infrastruktur_score * 100) }}%</span>
+                                    </div>
+                                    <div class="score-bar-item">
+                                        <span class="label">Demografie</span>
+                                        <div class="bar">
+                                            <div class="fill" style="width: {{ standort.score_breakdown.demografie_fit * 100 }}%"></div>
+                                        </div>
+                                        <span class="value">{{ "%.0f"|format(standort.score_breakdown.demografie_fit * 100) }}%</span>
+                                    </div>
+                                    <div class="score-bar-item">
+                                        <span class="label">Saisonalität</span>
+                                        <div class="bar">
+                                            <div class="fill" style="width: {{ standort.score_breakdown.saisonalitaet_score * 100 }}%"></div>
+                                        </div>
+                                        <span class="value">{{ "%.0f"|format(standort.score_breakdown.saisonalitaet_score * 100) }}%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Risiko-Treiber Card -->
+                            <div class="detail-card">
+                                <div class="detail-card-header detail-card-header-warning">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                    <h5>Risiko-Treiber</h5>
+                                </div>
+                                <div class="risk-items">
+                                    <div class="risk-item">
+                                        <span class="label">Konkurrenz</span>
+                                        <span class="value {{ 'low' if standort.risiko_treiber.konkurrenz_risiko < 30 else 'medium' if standort.risiko_treiber.konkurrenz_risiko < 60 else 'high' }}">
+                                            {{ "%.0f"|format(standort.risiko_treiber.konkurrenz_risiko) }}%
+                                        </span>
+                                    </div>
+                                    <div class="risk-item">
+                                        <span class="label">Mietniveau</span>
+                                        <span class="value {{ 'low' if standort.risiko_treiber.mietniveau_risiko < 30 else 'medium' if standort.risiko_treiber.mietniveau_risiko < 60 else 'high' }}">
+                                            {{ "%.0f"|format(standort.risiko_treiber.mietniveau_risiko) }}%
+                                        </span>
+                                    </div>
+                                    <div class="risk-item">
+                                        <span class="label">Datenqualität</span>
+                                        <span class="value {{ 'low' if standort.risiko_treiber.datenabdeckung_risiko < 30 else 'medium' if standort.risiko_treiber.datenabdeckung_risiko < 60 else 'high' }}">
+                                            {{ "%.0f"|format(standort.risiko_treiber.datenabdeckung_risiko) }}%
+                                        </span>
+                                    </div>
+                                    <div class="risk-item">
+                                        <span class="label">Kannibalisierung</span>
+                                        <span class="value {{ 'low' if standort.risiko_treiber.kannibalisierung_risiko < 30 else 'medium' if standort.risiko_treiber.kannibalisierung_risiko < 60 else 'high' }}">
+                                            {{ "%.0f"|format(standort.risiko_treiber.kannibalisierung_risiko) }}%
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+<!-- Input-Zusammenfassung -->
+<section class="input-summary">
+    <h3>Eingabeparameter</h3>
+    <div class="input-grid">
+        {% for key, value in output.input_zusammenfassung.items() %}
+        <div class="input-item">
+            <span class="label">{{ key|replace('_', ' ')|title }}</span>
+            <span class="value">{{ value }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- Actions -->
+<section class="actions-section">
+    <a href="/" class="btn btn-primary">Neue Analyse starten</a>
+    <a href="/export/csv?run_id={{ output.run_id }}" class="btn btn-secondary">CSV herunterladen</a>
+    <a href="/export/json?run_id={{ output.run_id }}" class="btn btn-secondary">JSON herunterladen</a>
+</section>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<!-- Ergebnis-Interaktionen werden zentral in /static/app.js verwaltet. -->
+{% endblock %}

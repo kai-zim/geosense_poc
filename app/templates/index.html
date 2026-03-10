@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+
+{% block title %}GeoSense Standort-Assistent - Analyse{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Standort-Assistent</h2>
+    <p class="subtitle">Finden Sie den optimalen Standort für Ihr Geschäft mit KI-gestützter Analyse</p>
+</div>
+
+<form id="analyze-form" action="/analyze" method="POST" class="analyze-form">
+    <!-- STEP 1: Grunddaten & Suchgebiet -->
+    <section class="form-step" id="step-1">
+        <div class="step-header">
+            <span class="step-number">1</span>
+            <div class="step-info">
+                <h3>Grunddaten & Suchgebiet</h3>
+                <p>Wählen Sie Ihre Branche und das Suchgebiet</p>
+            </div>
+        </div>
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="vertical">Branche / Vertikal *</label>
+                <select name="vertical" id="vertical" required>
+                    {% for value, name in verticals %}
+                    <option value="{{ value }}" {% if value == "retail" %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <span class="hint">Wählen Sie Ihre Geschäftsart</span>
+            </div>
+
+            <div class="form-group">
+                <label for="stadt_plz">Stadt / PLZ *</label>
+                <input type="text" name="stadt_plz" id="stadt_plz" value="Berlin" required>
+                <span class="hint">z.B. Berlin, München, 10115</span>
+            </div>
+
+            <div class="form-group">
+                <label for="radius_km">Suchradius: <span id="radius-value">10</span> km</label>
+                <input type="range" name="radius_km" id="radius_km" min="1" max="50" value="10" 
+                       oninput="document.getElementById('radius-value').textContent = this.value">
+            </div>
+
+            <div class="form-group">
+                <label for="isochrone_minuten">Erreichbarkeit (Isochrone)</label>
+                <select name="isochrone_minuten" id="isochrone_minuten">
+                    <option value="5">5 Minuten</option>
+                    <option value="10" selected>10 Minuten</option>
+                    <option value="15">15 Minuten</option>
+                    <option value="30">30 Minuten</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="kandidaten_anzahl">Kandidaten analysieren</label>
+                <input type="number" name="kandidaten_anzahl" id="kandidaten_anzahl" 
+                       value="200" min="10" max="1000">
+                <span class="hint">Anzahl zu generierender Standorte</span>
+            </div>
+
+            <div class="form-group">
+                <label for="top_n">Top-N Ergebnisse</label>
+                <input type="number" name="top_n" id="top_n" value="10" min="3" max="50">
+                <span class="hint">Anzahl der Top-Standorte im Ergebnis</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- STEP 2: Parameter & Gewichtung -->
+    <section class="form-step" id="step-2">
+        <div class="step-header">
+            <span class="step-number">2</span>
+            <div class="step-info">
+                <h3>Parameter & Gewichtung</h3>
+                <p>Konfigurieren Sie die Analyseparameter</p>
+            </div>
+        </div>
+
+        <!-- Tabs für Parametergruppen -->
+        <div class="param-tabs">
+            <button type="button" class="tab-btn active" data-tab="geschaeft">Geschäftsmodell</button>
+            <button type="button" class="tab-btn" data-tab="nachfrage">Nachfrage</button>
+            <button type="button" class="tab-btn" data-tab="kaufkraft">Kaufkraft</button>
+            <button type="button" class="tab-btn" data-tab="wettbewerb">Wettbewerb</button>
+            <button type="button" class="tab-btn" data-tab="infrastruktur">Infrastruktur</button>
+            <button type="button" class="tab-btn" data-tab="wetter">Wetter</button>
+            <button type="button" class="tab-btn" data-tab="ziele">Ziele</button>
+            <button type="button" class="tab-btn" data-tab="optionen">Optionen</button>
+        </div>
+
+        <!-- A) Geschäftsmodell -->
+        <div class="tab-content active" id="tab-geschaeft">
+            <h4>A) Geschäftsmodell</h4>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="store_format">Store-Format</label>
+                    <select name="store_format" id="store_format">
+                        <option value="klein">Klein</option>
+                        <option value="standard" selected>Standard</option>
+                        <option value="flagship">Flagship</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="oeffnungszeiten">Öffnungszeiten</label>
+                    <select name="oeffnungszeiten" id="oeffnungszeiten">
+                        {% for value, name in oeffnungszeiten %}
+                        <option value="{{ value }}" {% if value == "standard" %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="flaeche_qm">Fläche (m²)</label>
+                    <input type="number" name="flaeche_qm" id="flaeche_qm" value="150" min="20" max="5000">
+                </div>
+
+                <div class="form-group">
+                    <label for="miete_pro_qm">Miete (€/m²/Monat)</label>
+                    <input type="number" name="miete_pro_qm" id="miete_pro_qm" value="25" min="5" max="200">
+                </div>
+
+                <div class="form-group">
+                    <label for="capex_euro">CAPEX (€)</label>
+                    <input type="number" name="capex_euro" id="capex_euro" value="150000" min="10000" max="5000000" step="1000">
+                    <span class="hint">Einmalige Investition</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="opex_monat">OPEX (€/Monat)</label>
+                    <input type="number" name="opex_monat" id="opex_monat" value="15000" min="1000" max="500000" step="100">
+                    <span class="hint">Monatliche Betriebskosten (ohne Miete)</span>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Zielkunden</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox"><input type="checkbox" name="zielkunden" value="pendler" checked> Pendler</label>
+                        <label class="checkbox"><input type="checkbox" name="zielkunden" value="familien" checked> Familien</label>
+                        <label class="checkbox"><input type="checkbox" name="zielkunden" value="touristen"> Touristen</label>
+                        <label class="checkbox"><input type="checkbox" name="zielkunden" value="studierende"> Studierende</label>
+                        <label class="checkbox"><input type="checkbox" name="zielkunden" value="premium"> Premium</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- B) Nachfrage & Mobilität -->
+        <div class="tab-content" id="tab-nachfrage">
+            <h4>B) Nachfrage & Mobilität</h4>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="gewicht_fussgaenger">Fußgängerfrequenz: <span id="fuss-value">0.30</span></label>
+                    <input type="range" name="gewicht_fussgaenger" id="gewicht_fussgaenger" 
+                           min="0" max="1" step="0.05" value="0.3"
+                           oninput="document.getElementById('fuss-value').textContent = parseFloat(this.value).toFixed(2)">
+                </div>
+
+                <div class="form-group">
+                    <label for="gewicht_pendler">Pendlerströme: <span id="pendler-value">0.30</span></label>
+                    <input type="range" name="gewicht_pendler" id="gewicht_pendler"
+                           min="0" max="1" step="0.05" value="0.3"
+                           oninput="document.getElementById('pendler-value').textContent = parseFloat(this.value).toFixed(2)">
+                </div>
+
+                <div class="form-group">
+                    <label for="gewicht_drive_by">Drive-by Traffic: <span id="driveby-value">0.20</span></label>
+                    <input type="range" name="gewicht_drive_by" id="gewicht_drive_by"
+                           min="0" max="1" step="0.05" value="0.2"
+                           oninput="document.getElementById('driveby-value').textContent = parseFloat(this.value).toFixed(2)">
+                </div>
+
+                <div class="form-group">
+                    <label for="tageszeit_fokus">Tageszeit-Fokus</label>
+                    <select name="tageszeit_fokus" id="tageszeit_fokus">
+                        {% for value, name in tageszeit_optionen %}
+                        <option value="{{ value }}" {% if value == "alle" %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- C) Kaufkraft & Demografie -->
+        <div class="tab-content" id="tab-kaufkraft">
+            <h4>C) Kaufkraft & Demografie</h4>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label for="gewicht_kaufkraft">Kaufkraft-Gewicht: <span id="kk-value">0.40</span></label>
+                    <input type="range" name="gewicht_kaufkraft" id="gewicht_kaufkraft"
+                           min="0" max="1" step="0.05" value="0.4"
+                           oninput="document.getElementById('kk-value').textContent = parseFloat(this.value).toFixed(2)">
+                </div>
+
+                <div class="form-group">
+                    <label for="altersgruppe_18_25">18-25 Jahre: <span id="age1-value">0.25</span></label>
+                    <input type="range" name="altersgruppe_18_25" id="altersgruppe_18_25"
+                           min="0" max="1" step="0.05" value="0.25"
+                           oninput="document.getElementById('age1-value').textContent = parseFloat(this.value).toFixed(2)">
+                </div>
+
+                <div class="form-group">
+                    <label for="altersgruppe_26_40">26-40 Jahre: <span id="age2-value">0.35</span></label>
+                    <input type="range" name="altersgruppe_26_40" id="altersgruppe_26_40"
+                           min="0" max="1" step="0.05" value="0.35"
+                           oninput="document.getElementById('age2-value').textContent = parseFloat(this.value).toFixed(2)">
+                </div>
+
+                <div class="form-group">
+                    <label for="altersgruppe_41_65">41-65 Jahre: <span id="age3-value">0.30</span></label>
+                    <input type="range" name="altersgruppe_41_65" id="altersgruppe_41_65"
+                           min="0" max="1" step="0.05" value="0.30"
+                           oninput="document.getElementById('age3-value').textContent = parseFloat(this.value).toFixed(2)">
+                </div>
+
+                <div class="form-group">
+                    <label for="altersgruppe_65_plus">65+ Jahre: <span id="age4-value">0.10</span></label>
+                    <input type="range" name="altersgruppe_65_plus" id="altersgruppe_65_plus"
+                           min="0" max="1" step="0.05" value="0.10"
+                           oninput="document.getElementById('age4-value').textContent = parseFloat(this.value).toFixed(2)">
+                </div>
+            </div>
+        </div>
+
+        <!-- D) Wettbewerb & Kannibalisierung -->
+        <div class="tab-content" id="tab-wettbewerb">
+            <h4>D) Wettbewerb & Kannibalisierung</h4>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="konkurrenz_radius_km">Konkurrenzradius: <span id="konk-value">2.0</span> km</label>
+                    <input type="range" name="konkurrenz_radius_km" id="konkurrenz_radius_km"
+                           min="0.5" max="10" step="0.5" value="2"
+                           oninput="document.getElementById('konk-value').textContent = parseFloat(this.value).toFixed(1)">
+                </div>
+
+                <div class="form-group">
+                    <label for="mindestabstand_eigene_km">Mindestabstand eigene Standorte: <span id="mindest-value">1.0</span> km</label>
+                    <input type="range" name="mindestabstand_eigene_km" id="mindestabstand_eigene_km"
+                           min="0" max="10" step="0.5" value="1"
+                           oninput="document.getElementById('mindest-value').textContent = parseFloat(this.value).toFixed(1)">
+                </div>
+
+                <div class="form-group">
+                    <label for="gewicht_kannibalisierung">Kannibalisierungs-Gewicht: <span id="kannib-value">0.30</span></label>
+                    <input type="range" name="gewicht_kannibalisierung" id="gewicht_kannibalisierung"
+                           min="0" max="1" step="0.05" value="0.3"
+                           oninput="document.getElementById('kannib-value').textContent = parseFloat(this.value).toFixed(2)">
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Wettbewerber-Typen</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox"><input type="checkbox" name="wettbewerber_typen" value="direkt" checked> Direkte Konkurrenz</label>
+                        <label class="checkbox"><input type="checkbox" name="wettbewerber_typen" value="indirekt"> Indirekte Konkurrenz</label>
+                        <label class="checkbox"><input type="checkbox" name="wettbewerber_typen" value="online"> Online-Konkurrenz</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- E) Standort & Infrastruktur -->
+        <div class="tab-content" id="tab-infrastruktur">
+            <h4>E) Standort & Infrastruktur</h4>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="parkplaetze_min">Mindest-Parkplätze</label>
+                    <input type="number" name="parkplaetze_min" id="parkplaetze_min" value="5" min="0" max="500">
+                </div>
+
+                <div class="form-group">
+                    <label for="oepnv_naehe_max_min">Max. ÖPNV-Entfernung (Min.)</label>
+                    <input type="number" name="oepnv_naehe_max_min" id="oepnv_naehe_max_min" value="10" min="1" max="30">
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Sichtbarkeit & Lage</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox"><input type="checkbox" name="sichtbarkeit_ecke" value="on"> Ecklage bevorzugt</label>
+                        <label class="checkbox"><input type="checkbox" name="sichtbarkeit_highstreet" value="on" checked> Hauptstraße bevorzugt</label>
+                        <label class="checkbox"><input type="checkbox" name="e_ladepunkte_erforderlich" value="on"> E-Ladepunkte erforderlich</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- F) Wetter & Saisonalität -->
+        <div class="tab-content" id="tab-wetter">
+            <h4>F) Wetter & Saisonalität</h4>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="wetter_sensitivitaet">Wetter-Sensitivität</label>
+                    <select name="wetter_sensitivitaet" id="wetter_sensitivitaet">
+                        {% for value, name in wetter_optionen %}
+                        <option value="{{ value }}" {% if value == "mittel" %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                    <span class="hint">Wie stark beeinflusst Wetter Ihr Geschäft?</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="saisonprofil">Saisonprofil</label>
+                    <select name="saisonprofil" id="saisonprofil">
+                        {% for value, name in saison_optionen %}
+                        <option value="{{ value }}" {% if value == "neutral" %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                    <span class="hint">Saisonale Schwerpunkte</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- G) Ziele & Risiko -->
+        <div class="tab-content" id="tab-ziele">
+            <h4>G) Ziele & Risiko</h4>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="optimierungsziel">Optimierungsziel</label>
+                    <select name="optimierungsziel" id="optimierungsziel">
+                        {% for value, name in ziel_optionen %}
+                        <option value="{{ value }}" {% if value == "roi_max" %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="risikoappetit">Risikoappetit</label>
+                    <select name="risikoappetit" id="risikoappetit">
+                        {% for value, name in risiko_optionen %}
+                        <option value="{{ value }}" {% if value == "neutral" %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="mindest_roi_prozent">Mindest-ROI (%)</label>
+                    <input type="number" name="mindest_roi_prozent" id="mindest_roi_prozent" value="15" min="0" max="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="max_payback_monate">Max. Payback (Monate)</label>
+                    <input type="number" name="max_payback_monate" id="max_payback_monate" value="36" min="6" max="120">
+                </div>
+            </div>
+        </div>
+
+        <!-- H) Modell-Optionen -->
+        <div class="tab-content" id="tab-optionen">
+            <h4>H) Modell-Optionen</h4>
+            
+            <div class="preset-buttons">
+                <h5>Schnellauswahl (Presets)</h5>
+                <div class="button-group">
+                    <button type="button" class="preset-btn active" data-preset="balanced">
+                        Balanced
+                        <span class="preset-desc">Ausgewogenes Profil</span>
+                    </button>
+                    <button type="button" class="preset-btn" data-preset="growth">
+                        Growth
+                        <span class="preset-desc">Maximales Wachstum</span>
+                    </button>
+                    <button type="button" class="preset-btn" data-preset="low_risk">
+                        Low Risk
+                        <span class="preset-desc">Sicherheit zuerst</span>
+                    </button>
+                </div>
+                <input type="hidden" name="preset" id="preset" value="balanced">
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label>Zusätzliche Optionen</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox">
+                            <input type="checkbox" name="explainability" value="on" checked> 
+                            "Warum empfohlen?" anzeigen
+                            <span class="hint-inline">Zeigt Top-3 Gründe für jeden Standort</span>
+                        </label>
+                        <label class="checkbox">
+                            <input type="checkbox" name="sensitivitaetsanalyse" value="on"> 
+                            Sensitivitätsanalyse
+                            <span class="hint-inline">Prüft Ranking-Stabilität bei Gewichtsvariationen</span>
+                        </label>
+                        <label class="checkbox">
+                            <input type="checkbox" name="zeige_baseline_vergleich" value="on"> 
+                            Vergleich zu Baselines anzeigen
+                            <span class="hint-inline">Vergleicht mit Random, Kaufkraft×Verkehr, etc.</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- STEP 3: Analyse starten -->
+    <section class="form-step" id="step-3">
+        <div class="step-header">
+            <span class="step-number">3</span>
+            <div class="step-info">
+                <h3>Analyse starten</h3>
+                <p>Überprüfen Sie Ihre Einstellungen und starten Sie die Analyse</p>
+            </div>
+        </div>
+
+        <div class="summary-box">
+            <h4>Zusammenfassung</h4>
+            <div id="summary-content">
+                <!-- Wird per JS befüllt -->
+                <p>Überprüfen Sie Ihre Eingaben in den Tabs oben.</p>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-large" id="submit-btn">
+                Standortanalyse starten
+            </button>
+            <button type="reset" class="btn btn-secondary">Zurücksetzen</button>
+        </div>
+    </section>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Formular-Interaktionen werden zentral in /static/app.js verwaltet. -->
+{% endblock %}
